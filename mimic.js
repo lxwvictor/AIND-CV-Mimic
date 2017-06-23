@@ -61,6 +61,8 @@ function onStop() {
   if (detector && detector.isRunning) {
     detector.removeEventListener();
     detector.stop();  // stop detector
+    $("#target").text("?");
+    $("#score").text("Score: 0 / 0");
   }
 };
 
@@ -75,6 +77,8 @@ function onReset() {
 
   // TODO(optional): You can restart the game as well
   // <your code here>
+  $("#target").text("?");
+  $("#score").text("Score: 0 / 0");
 };
 
 // Add a callback to notify when camera access is allowed
@@ -108,6 +112,17 @@ detector.addEventListener("onInitializeSuccess", function() {
 // Add a callback to receive the results from processing an image
 // NOTE: The faces object contains a list of the faces detected in the image,
 //   probabilities for different expressions, emotions and appearance metrics
+
+var preTime;
+var curTime;
+var mimic = false;
+
+// Some js files required by the html are from Internet, it takes time to download and
+// program also needs time to initialized. However, the timestamp was already counting.
+// Thus, need below variabled to host the value.
+var loadFinished = false;
+var loadFinishedTime;
+
 detector.addEventListener("onImageResultsSuccess", function(faces, image, timestamp) {
   var canvas = $('#face_video_canvas')[0];
   if (!canvas)
@@ -117,6 +132,15 @@ detector.addEventListener("onImageResultsSuccess", function(faces, image, timest
   $('#results').html("");
   log('#results', "Timestamp: " + timestamp.toFixed(2));
   log('#results', "Number of faces found: " + faces.length);
+
+  preTime = curTime;
+  curTime = timestamp.toFixed(0);
+  if (!loadFinished) {
+    loadFinished = true;
+    loadFinishedTime = timestamp.toFixed(0);
+  }
+  genRandomEmoji(preTime, curTime);
+
   if (faces.length > 0) {
     // Report desired metrics
     log('#results', "Appearance: " + JSON.stringify(faces[0].appearance));
@@ -134,6 +158,7 @@ detector.addEventListener("onImageResultsSuccess", function(faces, image, timest
 
     // TODO: Call your function to run the game (define it first!)
     // <your code here>
+    checkEmoji(faces[0]);
   }
 });
 
@@ -152,6 +177,8 @@ function drawFeaturePoints(canvas, img, face) {
 
   // Loop over each feature point in the face
   for (var id in face.featurePoints) {
+    // featurePoints is a json object with many elements. Key is the index of feature point,
+    // value is the feature point object.
     var featurePoint = face.featurePoints[id];
 
     // TODO: Draw feature point, e.g. as a circle using ctx.arc()
@@ -176,11 +203,12 @@ function drawEmoji(canvas, img, face) {
   // See: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fillText
   // TIP: Pick a particular feature point as an anchor so that the emoji sticks to your face
   // <your code here>
-  var dominateEmoji = face.emojis.dominantEmoji;
-  // face.featurePoints is a json object
+  var domEmoji = face.emojis.dominantEmoji;
+  // featurePoints is a json object with many elements. Key is the index of feature point,
+  // value is the feature point object.
   var id = Object.keys(face.featurePoints).length - 1;
   var featurePoint = face.featurePoints[id];
-  ctx.fillText(dominateEmoji, featurePoint.x + 50, featurePoint.y);
+  ctx.fillText(domEmoji, featurePoint.x + 50, featurePoint.y);
 }
 
 // TODO: Define any variables and functions to implement the Mimic Me! game mechanics
@@ -198,8 +226,47 @@ function drawEmoji(canvas, img, face) {
 
 // <your code here>
 
-function mimicMe(canvas, img, face) {
-  var ctx = canvas.getContext('2d');
+function genRandomEmoji(preTime, curTime) {
+  preTime = preTime - loadFinishedTime;
+  curTime = curTime - loadFinishedTime;
+  if (curTime % 10 == 0 && curTime != preTime) {
+    randomIndex = Math.floor(Math.random() * 13);
+    setTargetEmoji(emojis[randomIndex]);
+    $("#mimicResult").text("Mimic Me!");
+    mimic = false;
+    updateTotalScore();
+  }
+}
 
-  
+function checkEmoji(face) {
+  if (!mimic) {
+    uniTarget = toUnicode($("#target").text());
+    uniMe = toUnicode(face.emojis.dominantEmoji);
+
+    if (uniTarget == uniMe) {
+      console.log("You got it!");
+      mimic = true;
+      $("#mimicResult").text("Mimic Me! You got it!");
+
+      updateScore();
+    }
+  }
+}
+
+function updateTotalScore() {
+  var scoreStr = $("#score").text();
+  var prefix = scoreStr.split("/")[0];
+  var score = parseInt(scoreStr.split("/")[1]);
+  score = score + 1;
+  $("#score").text(prefix + " / " + score)
+}
+
+function updateScore() {
+  var scoreStr = $("#score").text();
+  var prefix = scoreStr.split(":")[0];
+  var postfix = scoreStr.split(":")[1];
+  var score = parseInt(postfix.split("/")[0]);
+  postfix = postfix.split("/")[1];
+  score = score + 1;
+  $("#score").text(prefix + ": " + score + " /" + postfix);
 }
